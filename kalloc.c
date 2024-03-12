@@ -23,6 +23,12 @@ struct {
   struct run *freelist;
 } kmem;
 
+struct {
+	struct spinlock lock;
+	int use_lock;
+	int count[PHYSTOP / PGSIZE];
+} refcount;
+
 // Initialization happens in two phases.
 // 1. main() calls kinit1() while still using entrypgdir to place just
 // the pages mapped by entrypgdir on free list.
@@ -33,7 +39,13 @@ kinit1(void *vstart, void *vend)
 {
   initlock(&kmem.lock, "kmem");
   kmem.use_lock = 0;
+  initlock(&refcount.lock, "refcount");
+  refcount.use_lock = 0;
   freerange(vstart, vend);
+  for(int i = 0; i < PHYSTOP / PGSIZE; i++)
+  {
+      refcount.count[i] = 0;
+  }
 }
 
 void
@@ -41,6 +53,7 @@ kinit2(void *vstart, void *vend)
 {
   freerange(vstart, vend);
   kmem.use_lock = 1;
+  refcount.use_lock = 1;
 }
 
 void
@@ -64,6 +77,20 @@ kfree(char *v)
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
 
+  // decrement refcount
+  if(refcount.use_lock){
+	  acquire(&refcount.lock);
+	  if(V2P(v) / PGSIZE >= PHYSTOP / PGSIZE)
+		  panic("kfree: refcount");
+	  refcount.count[V2P(v) / PGSIZE]--;
+	  if(refcount.count[V2P(v) / PGSIZE] < 0)
+		  panic("kfree: refcount < 0");
+	  if(refcount.count[V2P(v) / PGSIZE] != 0)
+	  {
+		  return;
+	  }
+		  release(&refcount.lock);
+  }
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
 
@@ -87,8 +114,17 @@ kalloc(void)
   if(kmem.use_lock)
     acquire(&kmem.lock);
   r = kmem.freelist;
-  if(r)
+  if(r){
     kmem.freelist = r->next;
+	// set refcount to 1 if page newly allocated
+	if(refcount.use_lock){
+		acquire(&refcount.lock);
+		if(V2P((char*)r) / PGSIZE >= PHYSTOP / PGSIZE)
+			panic("kalloc: refcount");
+		refcount.count[V2P((char*)r) / PGSIZE] = 1;
+		release(&refcount.lock);
+	}
+  }
   if(kmem.use_lock)
     release(&kmem.lock);
   return (char*)r;
@@ -115,4 +151,22 @@ getNumFreePages(void)
 	if(kmem.use_lock)
 		release(&kmem.lock);
 	return count;
+}
+
+int incrementRefCount(char *v)
+{
+	if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
+		panic("incrementRefCount");
+	if(refcount.use_lock){
+		acquire(&refcount.lock);
+		if(V2P(v) / PGSIZE >= PHYSTOP / PGSIZE)
+			panic("incrementRefCount: refcount");
+		if(refcount.count[V2P(v) / PGSIZE] == 0)
+		{
+			panic("incrementRefCount: refcount == 0");
+		}
+		refcount.count[V2P(v) / PGSIZE]++;
+		release(&refcount.lock);
+	}
+	return 0;
 }
