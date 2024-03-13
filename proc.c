@@ -532,3 +532,12 @@ procdump(void)
     cprintf("\n");
   }
 }
+
+int handle_pgflt(uint addr)
+{
+	struct proc* curproc;
+	curproc = myproc();
+	// panic("handle_pgflt: returned from handle_pgflt_helper");
+	return handle_pgflt_helper(curproc, addr);
+
+}

@@ -41,11 +41,11 @@ kinit1(void *vstart, void *vend)
   kmem.use_lock = 0;
   initlock(&refcount.lock, "refcount");
   refcount.use_lock = 0;
-  freerange(vstart, vend);
   for(int i = 0; i < PHYSTOP / PGSIZE; i++)
   {
       refcount.count[i] = 0;
   }
+  freerange(vstart, vend);
 }
 
 void
@@ -77,6 +77,8 @@ kfree(char *v)
   if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
     panic("kfree");
 
+  if(kmem.use_lock)
+    acquire(&kmem.lock);
   // decrement refcount
   if(refcount.use_lock){
 	  acquire(&refcount.lock);
@@ -87,15 +89,16 @@ kfree(char *v)
 		  panic("kfree: refcount < 0");
 	  if(refcount.count[V2P(v) / PGSIZE] != 0)
 	  {
+		  release(&refcount.lock);
+		  if(kmem.use_lock)
+			release(&kmem.lock);
 		  return;
 	  }
-		  release(&refcount.lock);
+	  release(&refcount.lock);
   }
   // Fill with junk to catch dangling refs.
   memset(v, 1, PGSIZE);
 
-  if(kmem.use_lock)
-    acquire(&kmem.lock);
   r = (struct run*)v;
   r->next = kmem.freelist;
   kmem.freelist = r;
@@ -153,14 +156,16 @@ getNumFreePages(void)
 	return count;
 }
 
-int incrementRefCount(char *v)
+/*
+ * takes kernel accessible virtual address and increments the refcount
+ * argument is ideally returned by kalloc
+ */
+void incrementRefCount(char *v)
 {
 	if((uint)v % PGSIZE || v < end || V2P(v) >= PHYSTOP)
 		panic("incrementRefCount");
 	if(refcount.use_lock){
 		acquire(&refcount.lock);
-		if(V2P(v) / PGSIZE >= PHYSTOP / PGSIZE)
-			panic("incrementRefCount: refcount");
 		if(refcount.count[V2P(v) / PGSIZE] == 0)
 		{
 			panic("incrementRefCount: refcount == 0");
@@ -168,5 +173,5 @@ int incrementRefCount(char *v)
 		refcount.count[V2P(v) / PGSIZE]++;
 		release(&refcount.lock);
 	}
-	return 0;
+	return;
 }

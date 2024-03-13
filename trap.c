@@ -46,6 +46,10 @@ trap(struct trapframe *tf)
     return;
   }
 
+  // if(tf->trapno == T_PGFLT){
+  //   handle_pgflt(rcr2());
+  //   return;
+  // }
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
     if(cpuid() == 0){
@@ -78,6 +82,10 @@ trap(struct trapframe *tf)
     lapiceoi();
     break;
 
+  case T_PGFLT:
+    handle_pgflt(rcr2());
+    lapiceoi();
+    break;
   //PAGEBREAK: 13
   default:
     if(myproc() == 0 || (tf->cs&3) == 0){
