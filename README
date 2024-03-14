@@ -1,9 +1,3 @@
-# Navigating the solutions
-
-The solutions of the assignments are added and committed step wise.
-You can navigate through the commits to see the changes made in the code to get a better understanding of solutions.
-
-# xv6 README
 NOTE: we have stopped maintaining the x86 version of xv6, and switched
 our efforts to the RISC-V version
 (https://github.com/mit-pdos/xv6-riscv.git)

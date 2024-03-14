@@ -89,3 +89,27 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+int sys_numvp(){
+  return PGROUNDUP(myproc()->sz)/PGSIZE;
+}
+
+int sys_numpp(){
+  return get_pp();
+}
+
+int sys_mmap(){
+  int bytes;
+  if(argint(0, &bytes) < 0){
+    return 0;
+  }
+  if((bytes % PGSIZE != 0) || bytes <= 0){
+    return 0;
+  }
+  struct proc* curproc = myproc();
+  uint sz = PGROUNDUP(curproc->sz);  // for sanity
+  uint addr = sz;
+  sz += bytes;
+  curproc->sz = sz;
+  return addr;
+}

@@ -32,6 +32,7 @@ seginit(void)
 // Return the address of the PTE in page table pgdir
 // that corresponds to virtual address va.  If alloc!=0,
 // create any required page table pages.
+
 static pte_t *
 walkpgdir(pde_t *pgdir, const void *va, int alloc)
 {
@@ -391,4 +392,23 @@ copyout(pde_t *pgdir, uint va, void *p, uint len)
 // Blank page.
 //PAGEBREAK!
 // Blank page.
+
+int get_pp(){
+  struct proc* curproc = myproc();
+  int pp_count = 0;
+  for(uint va = 0; va < curproc->sz; va += PGSIZE){
+    pte_t* pte = walkpgdir(curproc->pgdir, (void*)va, 0);
+    if((pte != 0) && ((*pte & PTE_P) != 0)){
+      pp_count++;
+    }
+  }
+  return pp_count;
+}
+
+void allocate_page(uint va){
+  char* mem = kalloc();
+  memset(mem, 0, PGSIZE);
+  mappages(myproc()->pgdir, (char*)va, PGSIZE, V2P(mem), PTE_W|PTE_U);
+  switchuvm(myproc());
+}
 

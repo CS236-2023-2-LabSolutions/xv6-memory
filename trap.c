@@ -45,6 +45,18 @@ trap(struct trapframe *tf)
       exit();
     return;
   }
+  else if(tf->trapno == T_PGFLT){
+    if(myproc()->killed)
+      exit();
+    uint va = PGROUNDDOWN(rcr2());
+    if((va > myproc()->sz) || (va < 0)){
+      exit();
+    }
+    else{
+      allocate_page(va);
+    }
+    return;
+  }
 
   switch(tf->trapno){
   case T_IRQ0 + IRQ_TIMER:
